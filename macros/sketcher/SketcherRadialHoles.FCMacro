@@ -1,0 +1,57 @@
+"""
+This macro generates a radial pattern
+"""
+
+# Python Bindings for QT
+from PySide.QtGui import QDialog
+from PySide.QtGui import QSpinBox
+from PySide.QtGui import QLabel
+from PySide.QtGui import QPushButton
+from PySide.QtGui import QVBoxLayout
+from PySide.QtGui import QHBoxLayout
+
+
+class ToolDialog(QDialog):
+    def __init__(self):
+        super(ToolDialog, self).__init__()
+        layout = QVBoxLayout()
+
+        # default values
+        self.defaultRingNumber = 4
+        self.defaultHoleDiameter = 2
+
+        # inputs
+        nRingsLabel = QLabel("Enter number of radial rings:")
+        n_rings_input = QSpinBox()
+        n_rings_input.setValue(self.defaultRingNumber)
+
+        diameterLabel = QLabel("Enter diameter of holes (mm):")
+        hole_diameter_input = QSpinBox()
+        hole_diameter_input.setValue(self.defaultHoleDiameter)
+
+        # buttons
+        buttonsLayout = QHBoxLayout()
+        generateButton = QPushButton("generate")
+        generateButton.clicked.connect(self.generate)
+        closeButton = QPushButton("close")
+        closeButton.clicked.connect(self.close)
+        buttonsLayout.addWidget(generateButton)
+        buttonsLayout.addWidget(closeButton)
+
+        # add stuff to layout
+        layout.addWidget(nRingsLabel)
+        layout.addWidget(n_rings_input)
+        layout.addWidget(diameterLabel)
+        layout.addWidget(hole_diameter_input)
+        layout.addLayout(buttonsLayout)
+
+        self.setLayout(layout)
+
+        self.show()
+
+    def generate(self):
+        # TODO do stuff
+        print("SUPPPPP")
+
+
+radialHoleTool = ToolDialog()
