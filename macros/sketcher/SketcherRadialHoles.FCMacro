@@ -25,12 +25,12 @@ class ToolDialog(QDialog):
 
         # inputs
         nRingsLabel = QLabel("Enter number of radial rings:")
-        n_rings_input = QSpinBox()
-        n_rings_input.setValue(self.defaultRingNumber)
+        self.n_rings_input = QSpinBox()
+        self.n_rings_input.setValue(self.defaultRingNumber)
 
         diameterLabel = QLabel("Enter diameter of holes (mm):")
-        hole_diameter_input = QSpinBox()
-        hole_diameter_input.setValue(self.defaultHoleDiameter)
+        self.hole_diameter_input = QSpinBox()
+        self.hole_diameter_input.setValue(self.defaultHoleDiameter)
 
         # buttons
         buttonsLayout = QHBoxLayout()
@@ -43,9 +43,9 @@ class ToolDialog(QDialog):
 
         # add stuff to layout
         layout.addWidget(nRingsLabel)
-        layout.addWidget(n_rings_input)
+        layout.addWidget(self.n_rings_input)
         layout.addWidget(diameterLabel)
-        layout.addWidget(hole_diameter_input)
+        layout.addWidget(self.hole_diameter_input)
         layout.addLayout(buttonsLayout)
 
         self.setLayout(layout)
@@ -63,13 +63,37 @@ class ToolDialog(QDialog):
         sketchName = App.ActiveDocument.ActiveObject.Name
         sketch     = App.ActiveDocument.getObject(sketchName)
 
+        nRings       = self.n_rings_input.value()
+        holeDiameter = self.hole_diameter_input.value()
+
+        # create first ring as origin of geometry
+        origin = 0 # TODO set the origin to be some vector or something
+        # TODO set this to use the origin
         sketch.addGeometry(Part.Circle(App.Vector(-15.391302,-12.956521,0),App.Vector(0,0,1),7.339455),False)
+
+
+
+        # iterate from the second ring
+        for ring in range(1, nRings):
+            # how many holes in this ring?
+            nHoles = getHoleCount(ring)
+
+            # get angles between each hole
+            angle = 360.0/float(nHoles)
+
+            for hole in range(0, nHoles):
+                # offset
+            #
+            sketch.addGeometry(Part.Circle(App.Vector(-15.391302,-12.956521,0),App.Vector(0,0,1),7.339455),False)
 
         # TODO do more stuff
 
         App.ActiveDocument.recompute()
 
-
+    def getHoleCount(self, ring):
+        # determine the number of holes in the given ring
+        ringToHoleCount = [1, 6, 12, 20]
+        return ringToHoleCount[ring]
 
 
 radialHoleTool = ToolDialog()
