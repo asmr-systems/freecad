@@ -2,6 +2,9 @@
 This macro generates a radial pattern
 """
 
+import FreeCAD as App
+import Sketcher
+
 # Python Bindings for QT
 from PySide.QtGui import QDialog
 from PySide.QtGui import QSpinBox
@@ -50,8 +53,23 @@ class ToolDialog(QDialog):
         self.show()
 
     def generate(self):
-        # TODO do stuff
-        print("SUPPPPP")
+        # ensure that we are in a sketch
+        if App.ActiveDocument.ActiveObject.TypeId != "Sketcher::SketchObject":
+            # TODO add a warning message box
+            print("You must be within a Sketch to run this.")
+            self.close()
+            return
+
+        sketchName = App.ActiveDocument.ActiveObject.Name
+        sketch     = App.ActiveDocument.getObject(sketchName)
+
+        sketch.addGeometry(Part.Circle(App.Vector(-15.391302,-12.956521,0),App.Vector(0,0,1),7.339455),False)
+
+        # TODO do more stuff
+
+        App.ActiveDocument.recompute()
+
+
 
 
 radialHoleTool = ToolDialog()
