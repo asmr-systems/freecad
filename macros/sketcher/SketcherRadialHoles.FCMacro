@@ -1,6 +1,10 @@
 """
-This macro generates a radial pattern
+This macro generates a radial pattern of holes.
+
+NOTE: currently only works on the XY plane until i figure out how to get current axis.
 """
+
+import functools
 
 import FreeCAD as App
 import Sketcher
@@ -9,6 +13,7 @@ import Sketcher
 from PySide.QtGui import QDialog
 from PySide.QtGui import QSpinBox
 from PySide.QtGui import QLabel
+from PySide.QtGui import QProgressBar
 from PySide.QtGui import QPushButton
 from PySide.QtGui import QVBoxLayout
 from PySide.QtGui import QHBoxLayout
@@ -41,11 +46,15 @@ class ToolDialog(QDialog):
         buttonsLayout.addWidget(generateButton)
         buttonsLayout.addWidget(closeButton)
 
+        # progress bar
+        self.progressBar = QProgressBar()
+
         # add stuff to layout
         layout.addWidget(nRingsLabel)
         layout.addWidget(self.n_rings_input)
         layout.addWidget(diameterLabel)
         layout.addWidget(self.hole_diameter_input)
+        layout.addWidget(self.progressBar)
         layout.addLayout(buttonsLayout)
 
         self.setLayout(layout)
@@ -66,29 +75,66 @@ class ToolDialog(QDialog):
         nRings       = self.n_rings_input.value()
         holeDiameter = self.hole_diameter_input.value()
 
+        # get total hole count
+        nHoles = functools.reduce(lambda x, y: x+y, [self.getHoleCount(i) for i in range(1, nRings)]) + 1
+        progress = 0
+        self.progressBar.setMaximum(nHoles)
+
         # create first ring as origin of geometry
-        origin = 0 # TODO set the origin to be some vector or something
-        # TODO set this to use the origin
-        sketch.addGeometry(Part.Circle(App.Vector(-15.391302,-12.956521,0),App.Vector(0,0,1),7.339455),False)
+        origin = App.Vector(0, 0, 0)
+        axis   = App.Vector(0, 0, 1)
+        originCircle = sketch.addGeometry(Part.Circle(origin, axis, holeDiameter/2 ), False)
+        c = sketch.addConstraint(Sketcher.Constraint('Diameter', originCircle, App.Units.Quantity(str(holeDiameter) + " mm")))
+        sketch.setVirtualSpace(c, True)
 
-
+        progress = 1
+        self.progressBar.setValue(progress)
 
         # iterate from the second ring
         for ring in range(1, nRings):
             # how many holes in this ring?
-            nHoles = getHoleCount(ring)
+            nHoles = self.getHoleCount(ring)
 
             # get angles between each hole
             angle = 360.0/float(nHoles)
 
-            for hole in range(0, nHoles):
-                # offset
-            #
-            sketch.addGeometry(Part.Circle(App.Vector(-15.391302,-12.956521,0),App.Vector(0,0,1),7.339455),False)
+            # create a construction circle for this ring
+            ringRef = sketch.addGeometry(Part.Circle(origin, axis, holeDiameter*2*ring), True)
+            # constrain the construction circle center to coincide with origin circle center
+            sketch.addConstraint(Sketcher.Constraint('Coincident', originCircle, 3, ringRef, 3))
+            # contrain ref ring to be that big
+            sketch.addConstraint(Sketcher.Constraint('Radius', ringRef, App.Units.Quantity(str(holeDiameter*2*ring) + " mm")))
 
-        # TODO do more stuff
+            prevLine = None
+            for hole in range(0, nHoles):
+                progress = progress + 1
+                self.progressBar.setValue(progress)
+
+                if hole == 0:
+                    # start with an initial line at 270 degrees
+                    prevLine = sketch.addGeometry(Part.LineSegment(origin, App.Vector(0, -holeDiameter*2*ring, 0)), True)
+                    # give a vertical constraint
+                    sketch.addConstraint(Sketcher.Constraint('Vertical', prevLine))
+                    # give constraint for end point to touch this ring
+                    sketch.addConstraint(Sketcher.Constraint('PointOnObject', prevLine, 2, ringRef))
+                    sketch.addConstraint(Sketcher.Constraint('Coincident', originCircle, 3, prevLine, 1))
+                else:
+                    nextLine = sketch.addGeometry(Part.LineSegment(origin, App.Vector(0, -holeDiameter*2*ring, 0)), True)
+                    sketch.addConstraint(Sketcher.Constraint('PointOnObject', nextLine, 2, ringRef))
+                    sketch.addConstraint(Sketcher.Constraint('Coincident', originCircle, 3, nextLine, 1))
+                    c = sketch.addConstraint(Sketcher.Constraint('Angle', nextLine, prevLine, App.Units.Quantity(str(angle) + " deg")))
+                    sketch.setVirtualSpace(c, True)
+
+                    prevLine = nextLine
+
+                # add hole to previous construction line
+                newHole = sketch.addGeometry(Part.Circle(App.Vector(2, 2, 0), axis, holeDiameter), False)
+                c = sketch.addConstraint(Sketcher.Constraint('Diameter', newHole, App.Units.Quantity(str(holeDiameter) + " mm")))
+                sketch.setVirtualSpace(c, True)
+                sketch.addConstraint(Sketcher.Constraint('Coincident', newHole, 3, prevLine, 2))
 
         App.ActiveDocument.recompute()
+        self.close()
 
     def getHoleCount(self, ring):
         # determine the number of holes in the given ring
@@ -96,4 +142,5 @@ class ToolDialog(QDialog):
         return ringToHoleCount[ring]
 
 
+# instantiate tool dialog
 radialHoleTool = ToolDialog()
