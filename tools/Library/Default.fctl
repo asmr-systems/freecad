@@ -1,37 +1,4 @@
 {
-  "tools": [
-    {
-      "nr": 1,
-      "path": "/home/c/asmr.systems/freecad/tools/Bit/5mm_Endmill.fctb"
-    },
-    {
-      "nr": 2,
-      "path": "/home/c/asmr.systems/freecad/tools/Bit/5mm_Drill.fctb"
-    },
-    {
-      "nr": 3,
-      "path": "/home/c/asmr.systems/freecad/tools/Bit/6mm_Ball_End.fctb"
-    },
-    {
-      "nr": 4,
-      "path": "/home/c/asmr.systems/freecad/tools/Bit/6mm_Bullnose.fctb"
-    },
-    {
-      "nr": 5,
-      "path": "/home/c/asmr.systems/freecad/tools/Bit/60degree_Vbit.fctb"
-    },
-    {
-      "nr": 7,
-      "path": "/home/c/asmr.systems/freecad/tools/Bit/slittingsaw.fctb"
-    },
-    {
-      "nr": 8,
-      "path": "/home/c/asmr.systems/freecad/tools/Bit/probe.fctb"
-    },
-    {
-      "nr": 9,
-      "path": "/home/c/asmr.systems/freecad/tools/Bit/5mm-thread-cutter.fctb"
-    }
-  ],
+  "tools": [],
   "version": 1
 }

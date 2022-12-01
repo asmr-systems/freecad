@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "name": "6mm_Flat_Endmill_downcut_FCFL",
+  "shape": "endmill.fcstd",
+  "parameter": {
+    "Chipload": "0.00 mm",
+    "CuttingEdgeHeight": "25.40 mm",
+    "Diameter": "6.35 mm",
+    "Flutes": "2",
+    "Length": "63.50 mm",
+    "Material": "Carbide",
+    "ShankDiameter": "6.35 mm"
+  },
+  "attribute": {}
+}

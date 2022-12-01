@@ -41,6 +41,9 @@ via python scripts with:
 
 import wincnc_post
 wincnc_post.export(object,"/path/to/file.tap","")
+
+see WinCNC Gcode documentation here:
+https://www.wincnc.com/webfiles/CNC%20Windows/Manuals/WinManual_3.0r14.pdf
 '''
 
 now = datetime.datetime.now()
@@ -88,12 +91,22 @@ PRECISION = 4
 # G49  tool length offset compensation cancel
 # G80  cancel canned cycle
 # G90  absolute coordinates
-PREAMBLE = '''G17 G54 G40 G49 G80 G90
+PREAMBLE = '''G17
+G54
+G40
+G49
+G80
+G90
 '''
 
 # Postamble text will appear following the last operation.
-POSTAMBLE = '''M05
-G17 G54 G90 G80 G40
+POSTAMBLE = '''
+M05
+G17
+G54
+G90
+G80
+G40
 M2
 '''
 
@@ -378,16 +391,18 @@ def parse(pathobj):
             currLocation.update(c.Parameters)
 
             # Check for Tool Change:
+            # DISABLE TOOL CHANGE OPERATIONS
             if command == 'M6':
-                # stop the spindle
-                out += linenumber() + "M5\n"
-                for line in TOOL_CHANGE.splitlines(True):
-                    out += linenumber() + line
+                continue
+                # # stop the spindle
+                # out += linenumber() + "M5\n"
+                # for line in TOOL_CHANGE.splitlines(True):
+                #     out += linenumber() + line
 
-                # add height offset
-                if USE_TLO:
-                    tool_height = '\nG43 H' + str(int(c.Parameters['T']))
-                    outstring.append(tool_height)
+                # # add height offset
+                # if USE_TLO:
+                #     tool_height = '\nG43 H' + str(int(c.Parameters['T']))
+                #     outstring.append(tool_height)
 
             if command == "message":
                 if OUTPUT_COMMENTS is False:
