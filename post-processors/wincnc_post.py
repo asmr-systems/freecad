@@ -34,17 +34,35 @@ from PathScripts import PathUtils
 TOOLTIP = '''
 This is a postprocessor file for the Path workbench. It is used to
 take a pseudo-gcode fragment outputted by a Path object, and output
-real GCode suitable for a CAMasterStinger 1 CNC Router @FatCatFabLab (ATC disabled).
-This postprocessor, once placed in the appropriate PathScripts folder,
-can be used directly from inside FreeCAD, via the GUI importer or
-via python scripts with:
+real GCode suitable for a CAMaster Stinger 1 CNC Router @FatCatFabLab
+(ATC disabled). This postprocessor, once placed in the appropriate
+ PathScripts folder, can be used directly from inside FreeCAD, via
+the GUI importer or via python scripts with:
 
 import wincnc_post
 wincnc_post.export(object,"/path/to/file.tap","")
 
 see WinCNC Gcode documentation here:
 https://www.wincnc.com/webfiles/CNC%20Windows/Manuals/WinManual_3.0r14.pdf
+
+this postprocessor was adapted from the linuxcnc postprocessor
+for FreeCAD.
 '''
+
+# :: Notes About WinCNC GCode Dialect
+#
+# Please refer to the pages in the manual linked above.
+#
+# :::: Comments (p.138)
+#   Unlike linuxcnc, comments are enclosed by square brackets,
+#   e.g. "[this is a comment]"
+#
+# :::: Note About WinCNC Macros
+#   Only the commands listed in the manual are supported. However,
+#   WinCNC allows macros to be defined (CNC.MAC) which can define
+#   additional codes which aren't in the manual. For example,
+#   M3 and M5 are not defined by default, but are included as
+#   macros (which is why using M3 and M5 commands work in your gcode).
 
 now = datetime.datetime.now()
 
@@ -82,32 +100,24 @@ UNIT_FORMAT = 'in'
 MACHINE_NAME = "CAMaster Stinger 1"
 CORNER_MIN = {'x': 0, 'y': 0, 'z': 0}
 CORNER_MAX = {'x': 25, 'y': 36, 'z': 5}
-PRECISION = 4
+PRECISION = 7
 
 # Preamble text will appear at the beginning of the GCODE output file.
-# G17  XY plane selection
 # G54  switch to 0,0 of 1st workspace (single tool machine usually only use G54)
 # G40  tool radius compensation off
 # G49  tool length offset compensation cancel
 # G80  cancel canned cycle
 # G90  absolute coordinates
-PREAMBLE = '''G17
-G54
-G40
-G49
-G80
-G90
+PREAMBLE = '''G54\t\t[Using G54 Workspace]
+G40\t\t[Tool Cutter Compensation Off]
+G49\t\t[Tool Length Offset Off]
+G90\t\t[Absolute Mode]
+G53 Z0\t\t[Lift Z to top]
 '''
 
 # Postamble text will appear following the last operation.
-POSTAMBLE = '''
-M05
-G17
-G54
-G90
-G80
-G40
-M2
+POSTAMBLE = '''G53 Z0\t\t[Rapid Move Z to 0]
+M05\t\t[Turn Spindle Off]
 '''
 
 # Pre operation text will be inserted before every operation
@@ -194,14 +204,14 @@ def export(objectslist, filename, argstring):
     if OUTPUT_HEADER:
         gcode += linenumber() + "[Exported by FreeCAD]\n"
         gcode += linenumber() + "[Post Processor: " + __name__ + "]\n"
-        gcode += linenumber() + "[Output Time:" + str(now) + "]\n"
+        gcode += linenumber() + "[Output Time:" + str(now) + "]\n\n"
 
     # Write the preamble
     if OUTPUT_COMMENTS:
-        gcode += linenumber() + "[begin preamble]\n"
+        gcode += linenumber() + "[Begin Preamble]\n"
     for line in PREAMBLE.splitlines(False):
         gcode += linenumber() + line + "\n"
-        gcode += linenumber() + UNITS + "\n"
+    gcode += linenumber() + UNITS + "\t\t[Units: " + UNIT_FORMAT + "]\n\n"
 
     for obj in objectslist:
 
@@ -233,10 +243,10 @@ def export(objectslist, filename, argstring):
 
         # do the pre_op
         if OUTPUT_COMMENTS:
-            gcode += linenumber() + "[begin operation: %s]\n" % obj.Label
-            gcode += linenumber() + "[machine: %s, %s]\n" % (myMachine, UNIT_SPEED_FORMAT)
+            gcode += linenumber() + "[Operation: " + obj.Label + \
+                " (" + UNIT_SPEED_FORMAT + ")]\n"
         for line in PRE_OPERATION.splitlines(True):
-            gcode += linenumber() + line
+            gcode += linenumber() + line + "\n"
 
         # get coolant mode
         coolantMode = 'None'
@@ -259,10 +269,9 @@ def export(objectslist, filename, argstring):
         gcode += parse(obj)
 
         # do the post_op
-        if OUTPUT_COMMENTS:
-            gcode += linenumber() + "[finish operation: %s]\n" % obj.Label
         for line in POST_OPERATION.splitlines(True):
-            gcode += linenumber() + line
+            gcode += linenumber() + line + ""
+        gcode += "\n"
 
         # turn coolant off if required
         if not coolantMode == 'None':
@@ -272,7 +281,7 @@ def export(objectslist, filename, argstring):
 
     # do the post_amble
     if OUTPUT_COMMENTS:
-        gcode += "[begin postamble]\n"
+        gcode += "[Postamble]\n"
     for line in POSTAMBLE.splitlines(True):
         gcode += linenumber() + line
 
@@ -391,9 +400,20 @@ def parse(pathobj):
             currLocation.update(c.Parameters)
 
             # Check for Tool Change:
-            # DISABLE TOOL CHANGE OPERATIONS
+            # DISABLE TOOL CHANGE OPERATIONS FOR NOW
             if command == 'M6':
                 continue
+                # # TODO:
+                # # implement:
+                # # when a tool change occurs (never occurs at the beginning of a job)
+                # # because it assumes the tool has already been inserted, measured, and
+                # # the Z has been zeroed):
+                # # (1) the spindle is stopped (M5) -- actually a macro for M12 C1
+                # # (2) tool is lifted to clear position
+                # # (3) tool is moved home
+                # # (4) pause until spindle is turned on again (M17 C2)
+                # #     see (p.111)
+                # # continue
                 # # stop the spindle
                 # out += linenumber() + "M5\n"
                 # for line in TOOL_CHANGE.splitlines(True):
