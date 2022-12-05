@@ -91,6 +91,7 @@ USE_TLO = True # if true G43 will be output following tool changes
 OUTPUT_DOUBLES = True  # if false duplicate axis values are suppressed if the same as previous line.
 COMMAND_SPACE = " "
 LINENR = 100  # line number starting value
+SKIP_FIRST_TOOLCHANGE = True
 
 # These globals will be reflected in the Machine configuration of the project
 UNITS = "G20"  # G21 for metric, G20 for us standard
@@ -126,8 +127,33 @@ PRE_OPERATION = ''''''
 # Post operation text will be inserted after every operation
 POST_OPERATION = ''''''
 
+
 # Tool Change commands will be inserted before a tool change
-TOOL_CHANGE = ''''''
+PRE_TOOL_CHANGE = '''G28Z\t\t\t\t[Go to Machine Z0]
+G53Z\t\t\t\t[Lift Z (Rapid)]
+M5\t\t\t\t[Turn Spindle Off]
+G53 X0 Y0'''''
+TOOL_CHANGE_NOTIFICATION = '''
+G5 T2 M"Please Change Tool to '{tool_num:s}'. Press OK when done (Keep Dust Boot Off!)."
+'''''
+TOOL_CHANGE = '''G5 T2 M"Press OK to Measure Tool."
+L21\t\t\t\t[Disable Soft Limits]
+L210Z\t\t\t\t[Select Z Alt Low Limits]
+G53 Z0
+G53 X{TMX}Y{TMY}\t\t[Move to Tool Measure Switch X/Y Coordinates]
+L91 G0 Z{TMD}
+L91 G1 Z-9 M28 F20 G31\t\t[Perform Measurement of Tool]
+M37 Z{TM1} H{TP1}\t\t[Set New Tool Offset]
+G53 Z0
+L91 G1 Z0 F50
+L212\t\t\t\t[Select Primary Limits for All Axes]
+G0
+G53 X0 Y0
+G5 T2 M"Please Replace Dust Boot. Press OK when done."
+G5 T2 M"Continue Job?"
+'''
+
+first_tool_change_skipped = False
 
 # to distinguish python built-in open function from the one declared below
 if open.__module__ in ['__builtin__','io']:
@@ -223,23 +249,26 @@ def export(objectslist, filename, argstring):
             if not obj.Base.Active:
                 continue
 
+        # remove everything related to job as per:
+        # https://forum.freecadweb.org/viewtopic.php?p=490458&sid=3cea99e5af6ca2a370869eac081fffe8#p490458
+
         # fetch machine details
-        job = PathUtils.findParentJob(obj)
+        # job = PathUtils.findParentJob(obj)
 
         myMachine = 'not set'
 
-        if hasattr(job, "MachineName"):
-            myMachine = job.MachineName
+        # if hasattr(job, "MachineName"):
+        #     myMachine = job.MachineName
 
-        if hasattr(job, "MachineUnits"):
-            if job.MachineUnits == "Metric":
-                UNITS = "G21"
-                UNIT_FORMAT = 'mm'
-                UNIT_SPEED_FORMAT = 'mm/min'
-            else:
-                UNITS = "G20"
-                UNIT_FORMAT = 'in'
-                UNIT_SPEED_FORMAT = 'in/min'
+        # if hasattr(job, "MachineUnits"):
+        #     if job.MachineUnits == "Metric":
+        #         UNITS = "G21"
+        #         UNIT_FORMAT = 'mm'
+        #         UNIT_SPEED_FORMAT = 'mm/min'
+        #     else:
+        #         UNITS = "G20"
+        #         UNIT_FORMAT = 'in'
+        #         UNIT_SPEED_FORMAT = 'in/min'
 
         # do the pre_op
         if OUTPUT_COMMENTS:
@@ -324,6 +353,8 @@ def parse(pathobj):
     global OUTPUT_DOUBLES
     global UNIT_FORMAT
     global UNIT_SPEED_FORMAT
+    global SKIP_FIRST_TOOLCHANGE
+    global first_tool_change_skipped
 
     out = ""
     lastcommand = None
@@ -332,7 +363,7 @@ def parse(pathobj):
 
     # the order of parameters
     # linuxcnc doesn't want K properties on XY plane  Arcs need work.
-    params = ['X', 'Y', 'Z', 'A', 'B', 'C', 'I', 'J', 'F', 'S', 'T', 'Q', 'R', 'L', 'H', 'D', 'P']
+    params = ['X', 'Y', 'Z', 'A', 'B', 'C', 'I', 'J', 'S', 'T', 'Q', 'R', 'F', 'L', 'H', 'D', 'P']
     firstmove = Path.Command("G0", {"X": -1, "Y": -1, "Z": -1, "F": 0.0})
     currLocation.update(firstmove.Parameters)  # set First location Parameters
 
@@ -369,6 +400,10 @@ def parse(pathobj):
                     outstring.pop()
                     outstring.append(command.replace('(', '[').replace(')', ']'))
 
+            # intercept G99 -- not supported by WinCNC
+            if c.Name == "G99":
+                continue
+
             # Now add the remaining parameters in order
             for param in params:
                 if param in c.Parameters:
@@ -400,29 +435,32 @@ def parse(pathobj):
             currLocation.update(c.Parameters)
 
             # Check for Tool Change:
-            # DISABLE TOOL CHANGE OPERATIONS FOR NOW
             if command == 'M6':
-                continue
-                # # TODO:
-                # # implement:
-                # # when a tool change occurs (never occurs at the beginning of a job)
-                # # because it assumes the tool has already been inserted, measured, and
-                # # the Z has been zeroed):
-                # # (1) the spindle is stopped (M5) -- actually a macro for M12 C1
-                # # (2) tool is lifted to clear position
-                # # (3) tool is moved home
-                # # (4) pause until spindle is turned on again (M17 C2)
-                # #     see (p.111)
-                # # continue
-                # # stop the spindle
-                # out += linenumber() + "M5\n"
-                # for line in TOOL_CHANGE.splitlines(True):
-                #     out += linenumber() + line
+                # since we are assuming that the operator has already measured the tool
+                # and zeroed the tooltip before starting the job, we do not run the tool
+                # change operation for the initial tool.
+                if SKIP_FIRST_TOOLCHANGE and not first_tool_change_skipped:
+                    first_tool_change_skipped = True
+                    continue
 
-                # # add height offset
+                for line in PRE_TOOL_CHANGE.splitlines(True):
+                    out += linenumber() + line
+
+                out += TOOL_CHANGE_NOTIFICATION.format(tool_num = pathobj.Tool.Label)
+
+                for line in TOOL_CHANGE.splitlines(True):
+                    out += linenumber() + line
+
+                # add height offset
+                # M37 (used in the TOOL_CHANGE gcodes) enables G43 in WinCNC, so we
+                # don't have to explicitly set it. (see p.32)
                 # if USE_TLO:
                 #     tool_height = '\nG43 H' + str(int(c.Parameters['T']))
-                #     outstring.append(tool_height)
+                #     out += linenumber() + tool_height + "\n"
+
+                # do not actually add the M6 command: WinCNC doesn't recognize it.
+                continue
+
 
             if command == "message":
                 if OUTPUT_COMMENTS is False:
