@@ -34,10 +34,10 @@ from PathScripts import PathUtils
 TOOLTIP = '''
 This is a postprocessor file for the Path workbench. It is used to
 take a pseudo-gcode fragment outputted by a Path object, and output
-real GCode suitable for a CAMaster Stinger 1 CNC Router @FatCatFabLab
-(ATC disabled). This postprocessor, once placed in the appropriate
- PathScripts folder, can be used directly from inside FreeCAD, via
-the GUI importer or via python scripts with:
+real GCode suitable for a CAMaster Stinger 1 CNC Router @FatCatFabLab.
+This postprocessor, once placed in the appropriate PathScripts folder,
+can be used directly from inside FreeCAD, via the GUI importer or via
+python scripts with:
 
 import wincnc_post
 wincnc_post.export(object,"/path/to/file.tap","")
@@ -104,14 +104,8 @@ CORNER_MAX = {'x': 25, 'y': 36, 'z': 5}
 PRECISION = 7
 
 # Preamble text will appear at the beginning of the GCODE output file.
-# G54  switch to 0,0 of 1st workspace (single tool machine usually only use G54)
-# G40  tool radius compensation off
-# G49  tool length offset compensation cancel
-# G80  cancel canned cycle
-# G90  absolute coordinates
 PREAMBLE = '''G54\t\t[Using G54 Workspace]
 G40\t\t[Tool Cutter Compensation Off]
-G49\t\t[Tool Length Offset Off]
 G90\t\t[Absolute Mode]
 G53 Z0\t\t[Lift Z to top]
 '''
@@ -128,11 +122,10 @@ PRE_OPERATION = ''''''
 POST_OPERATION = ''''''
 
 
-# Tool Change commands will be inserted before a tool change
-PRE_TOOL_CHANGE = '''G28Z\t\t\t\t[Go to Machine Z0]
-G53Z\t\t\t\t[Lift Z (Rapid)]
+# Tool Change commands will be inserted before a tool change (replacing M6)
+PRE_TOOL_CHANGE = '''G53Z\t\t\t\t[Lift Z (Rapid)]
 M5\t\t\t\t[Turn Spindle Off]
-G53 X0 Y0'''''
+G53 X0 Y0\t\t\t\t[Go to Machine Home (Rapid)]'''''
 TOOL_CHANGE_NOTIFICATION = '''
 G5 T2 M"Please Change Tool to '{tool_num:s}'. Press OK when done (Keep Dust Boot Off!)."
 '''''
@@ -141,15 +134,18 @@ L21\t\t\t\t[Disable Soft Limits]
 L210Z\t\t\t\t[Select Z Alt Low Limits]
 G53 Z0
 G53 X{TMX}Y{TMY}\t\t[Move to Tool Measure Switch X/Y Coordinates]
+G92.3\t\t\t\t[store local coordinates, switch to absolute for tool measure]
 L91 G0 Z{TMD}
-L91 G1 Z-9 M28 F20 G31\t\t[Perform Measurement of Tool]
+L91 G1 Z-9 M28 F20 G31\t\t[Descend until bit touches measurement pad]
 M37 Z{TM1} H{TP1}\t\t[Set New Tool Offset]
 G53 Z0
+G92.3\t\t\t\t[restore local coordinates]
 L91 G1 Z0 F50
 L212\t\t\t\t[Select Primary Limits for All Axes]
 G0
 G53 X0 Y0
 G5 T2 M"Please Replace Dust Boot. Press OK when done."
+L20
 G5 T2 M"Continue Job?"
 '''
 
