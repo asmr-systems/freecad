@@ -79,6 +79,7 @@ M5\t\t\t\t; Turn Spindle Off
 G53 X0 Y0\t\t\t\t; Go to ToolChange Location
 '''
 # notification message to be sent to UGS
+# TODO get this to work on UGS
 TOOL_CHANGE_NOTIFICATION = '''
 (MSG, Please Change Tool to '{tool_num:s}'. Press OK when done. Keep Dust Boot Off!)
 '''
