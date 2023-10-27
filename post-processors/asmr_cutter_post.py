@@ -82,9 +82,34 @@ G53 X0 Y0\t\t\t\t; Go to ToolChange Location
 # TODO get this to work on UGS
 TOOL_CHANGE_NOTIFICATION = '''
 (MSG, Please Change Tool to '{tool_num:s}'. Press OK when done. Keep Dust Boot Off!)
+M0
 '''
 # sequence of operations for a tool change
 # TODO get rid of variables TMD, TMX, TMY, TM1, TP1 (these are from wincnc impl)
+# seems like instead of M37, we can use the G43.1 command for dynamic tool length offsets
+# see https://github.com/gnea/grbl/issues/725#issuecomment-531950948
+# okay, but before we can do that we need to resolve the issue of where we are storing the
+# results from the probe measurement.
+# in GRBL, it doesn't store the results internally since the firmware is so small, instead
+# it sends the results back to the gcode sender in the form of a comment:
+# [PRB:<X>,<Y>,<Z>]
+# if the gcode sender can parse that and store it as a probe result,
+# then it can be used maybe.
+# note: in the wincnc tool change gcode, we are using M37 to set the
+# tool offset.
+# see https://mickmartinwoodworking.com/cnc/cnc-g-code-1/
+# whereas in grbl we are using 43.1?
+# however in this one they are using G10 L20 to set the tool offset...?
+# https://github.com/cncjs/CNCjs-Macros/blob/master/C3D_BitSetter/New_Tool_BitSetter.txt
+# actually take a look at this: https://github.com/cncjs/CNCjs-Macros/blob/master/C3D_BitSetter/Initial_Tool_BitSetter.txt
+# basically the way that this works is that a zero is set, then a tool is probed and the
+# Z location for when the probe is touch is saved. this is the initial tool offset.
+# then on subsequent tool changes, it probes, but doesn't use the new values of the probe
+# result. it uses the initial tool offset value and uses G10 L20 to set the current Z location
+# to that initial tool offset value.
+# Question: does the PRB result returned just tell you the current location?
+# Approximately, the machine location is very slightly lower than the reported location
+# probably because the machine didn't stop moving immediately when the switch was triggered.
 TOOL_CHANGE = '''(MSG, Press OK to Measure Tool.)
 L21\t\t\t\t; Disable Soft Limits
 L210Z\t\t\t\t; Select Z Alt Low Limits
@@ -101,17 +126,18 @@ L212\t\t\t\t; Select Primary Limits for All Axes
 G0
 G53 X0 Y0
 (MSG, Please Replace Dust Boot. Press OK when done to continue job.)
+M0
 L20
 '''
 
-SPINDLE_WAIT = 0                  # no waiting after M3 / M4 by default
+SPINDLE_WAIT = 5                  # no waiting after M3 / M4 by default
 RETURN_TO = None                  # no movements after end of program
 
 # Customisation with no command line argument
 MODAL = False                     # if true commands are suppressed if the same as previous line.
 LINENR = 100                      # line number starting value
 LINEINCR = 10                     # line number increment
-OUTPUT_TOOL_CHANGE = False        # default don't output M6 tool changes (comment it) as grbl currently does not handle it
+OUTPUT_TOOL_CHANGE = True         # default don't output M6 tool changes (comment it) as grbl currently does not handle it
 DRILL_RETRACT_MODE = 'G98'        # Default value of drill retractations (CURRENT_Z) other possible value is G99
 MOTION_MODE = 'G90'               # G90 for absolute moves, G91 for relative
 UNITS = 'G21'                     # G21 for metric, G20 for us standard
