@@ -435,6 +435,7 @@ def parse(pathobj):
   global CURRENT_X
   global CURRENT_Y
   global CURRENT_Z
+  global first_tool_change_skipped
 
   out = ""
   lastcommand = None

@@ -1,0 +1,13 @@
+{
+  "tools": [
+    {
+      "nr": 1,
+      "path": "/home/c/asmr.systems/freecad/tools/Bit/6mm_Flat_Endmill_ASMR.fctb"
+    },
+    {
+      "nr": 2,
+      "path": "/home/c/asmr.systems/freecad/tools/Bit/6mm_Drill_ASMR.fctb"
+    }
+  ],
+  "version": 1
+}
