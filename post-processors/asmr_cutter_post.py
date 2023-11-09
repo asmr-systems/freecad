@@ -71,19 +71,19 @@ SKIP_FIRST_TOOLCHANGE = True      # This skips the first M6 encountered and will
 PREAMBLE = '''
 G17\t\t; Set Workspace Plane to X/Y
 G90\t\t; Absolute Mode
-G53 Z0\t\t; Rapid Move Z to Machine 0
+G53 G0 Z{Z_SAFE_HEIGHT}\t\t; Rapid Move Z to Machine 0
 '''
 # default postamble text will appear following the last operation.
 POSTAMBLE = '''
-G53 Z0\t\t; Rapid Move Z to Machine 0
+G53 G0 Z{Z_SAFE_HEIGHT}\t\t; Rapid Move Z to Machine 0
 M5\t\t; Turn Off Spindle
 M2\t\t; End Program
 '''
 # sequence of operations to begin a tool change
 PRE_TOOL_CHANGE = '''
-G53 Z0\t\t\t\t; Rapid Lift Z to Machine 0
+G53 G0 Z{Z_SAFE_HEIGHT}\t\t\t\t; Rapid Lift Z to Machine 0
 M5\t\t\t\t; Turn Spindle Off
-G53 X{TOOL_CHANGE_X} Y{TOOL_CHANGE_Y}\t\t\t\t; Go to Tool Change Location
+G53 G0 X{TOOL_CHANGE_X} Y{TOOL_CHANGE_Y}\t\t\t\t; Go to Tool Change Location
 '''
 # notification message to be sent to UGS
 # TODO get this to work on UGS
@@ -105,8 +105,8 @@ M0\t\t\t\t; Pause
 # this seems the most straightforward.
 TOOL_CHANGE = '''
 (MSG, Press OK to Measure Tool.)
-G53 X{TOOL_MEASURE_PROBE_X} Y{TOOL_MEASURE_PROBE_Y}\t\t; Move to Tool Measure Probe X/Y Coordinates
-G53 Z{TOOL_MEASURE_PROBE_Z}\t\t\t\t; Rapid Move to Tool Measure Initial Z Height
+G53 G0 X{TOOL_MEASURE_PROBE_X} Y{TOOL_MEASURE_PROBE_Y}\t\t; Move to Tool Measure Probe X/Y Coordinates
+G53 G0 Z{TOOL_MEASURE_PROBE_Z}\t\t\t\t; Rapid Move to Tool Measure Initial Z Height
 G91\t\t\t\t; Begin Relative Movement Mode
 G38.2 Z-{TOOL_MEASURE_PROBE_Z_DISTANCE} F{TOOL_MEASURE_RAPID_FEEDRATE}\t\t\t\t; Probe Quickly At First, Stop on Contact
 G0 z2\t\t\t\t; Dial it back a bit
@@ -120,7 +120,7 @@ G38.4 z10 F5\t\t\t\t; Dial it back Again, but even slower and stop when probe co
 G4 P.25\t\t\t\t; Wait
 G90\t\t\t\t; End Relative Movement Mode
 G10 L20 Z{TOOL_MEASURED_Z_REF}\t\t\t\t; Set the Z current location to measured tool Z reference
-G53 Z0\t\t\t\t; Rapid Move Z to Machine 0
+G53 G0 Z{SAFE_HEIGHT}\t\t\t\t; Rapid Move Z to Machine 0
 G0 X0 Y0\t\t\t\t; Rapid Move to Work X/Y 0
 (MSG, Please Replace Dust Boot. Press OK when done to continue job.)
 M0
