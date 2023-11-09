@@ -44,7 +44,11 @@ asmr_cutter_post.export(objects, "/path/to/file.nc", "")
 the asmr_cutter uses a grbl controller so the postprocessor mainly converts to
 standard grbl gcode, but it includes to handy aliases for:
   1. tool change (M6)
-  2. TBD (possibly zero measure)
+notably, this post-processor is intended for use with the Universal GCode Sender
+and uses expression scripting to read/write variables related to:
+  1. Tool Change Location
+  2. Tool Measurement Probe Location
+  3. Measured Tool Z Reference
 this postprocessor was adapted from the grbl postprocessor for FreeCAD.
 '''
 
@@ -61,73 +65,65 @@ OUTPUT_BCNC = False               # default doesn't add bCNC operation block hea
 SHOW_EDITOR = True                # default show the resulting file dialog output in GUI
 PRECISION = 4                     # Default precision for metric (see http://linuxcnc.org/docs/2.7/html/gcode/overview.html#_g_code_best_practices)
 TRANSLATE_DRILL_CYCLES = False    # If true, G81, G82 & G83 are translated in G0/G1 moves
-SKIP_FIRST_TOOLCHANGE = True
+SKIP_FIRST_TOOLCHANGE = True      # This skips the first M6 encountered and will assume that the operator has already measured the tool zero
 
  # default preamble text will appear at the beginning of the gCode output file.
-PREAMBLE = '''G17\t\t; Set Workspace Plane to X/Y
+PREAMBLE = '''
+G17\t\t; Set Workspace Plane to X/Y
 G90\t\t; Absolute Mode
-G53 Z0\t\t; Rapid Move Z to 0
+G53 Z0\t\t; Rapid Move Z to Machine 0
 '''
 # default postamble text will appear following the last operation.
-POSTAMBLE = '''G53 Z0\t\t; Rapid Move Z to 0
+POSTAMBLE = '''
+G53 Z0\t\t; Rapid Move Z to Machine 0
 M5\t\t; Turn Off Spindle
 M2\t\t; End Program
 '''
 # sequence of operations to begin a tool change
-PRE_TOOL_CHANGE = '''G53Z\t\t\t\t; Rapid Lift Z
+PRE_TOOL_CHANGE = '''
+G53 Z0\t\t\t\t; Rapid Lift Z to Machine 0
 M5\t\t\t\t; Turn Spindle Off
-G53 X0 Y0\t\t\t\t; Go to ToolChange Location
+G53 X{TOOL_CHANGE_X} Y{TOOL_CHANGE_Y}\t\t\t\t; Go to Tool Change Location
 '''
 # notification message to be sent to UGS
 # TODO get this to work on UGS
 TOOL_CHANGE_NOTIFICATION = '''
 (MSG, Please Change Tool to '{tool_num:s}'. Press OK when done. Keep Dust Boot Off!)
-M0
+M0\t\t\t\t; Pause
 '''
-# sequence of operations for a tool change
-# TODO get rid of variables TMD, TMX, TMY, TM1, TP1 (these are from wincnc impl)
-# seems like instead of M37, we can use the G43.1 command for dynamic tool length offsets
-# see https://github.com/gnea/grbl/issues/725#issuecomment-531950948
-# okay, but before we can do that we need to resolve the issue of where we are storing the
-# results from the probe measurement.
-# in GRBL, it doesn't store the results internally since the firmware is so small, instead
-# it sends the results back to the gcode sender in the form of a comment:
-# [PRB:<X>,<Y>,<Z>]
-# if the gcode sender can parse that and store it as a probe result,
-# then it can be used maybe.
-# note: in the wincnc tool change gcode, we are using M37 to set the
-# tool offset.
-# see https://mickmartinwoodworking.com/cnc/cnc-g-code-1/
-# whereas in grbl we are using 43.1?
-# however in this one they are using G10 L20 to set the tool offset...?
-# https://github.com/cncjs/CNCjs-Macros/blob/master/C3D_BitSetter/New_Tool_BitSetter.txt
-# actually take a look at this: https://github.com/cncjs/CNCjs-Macros/blob/master/C3D_BitSetter/Initial_Tool_BitSetter.txt
-# basically the way that this works is that a zero is set, then a tool is probed and the
-# Z location for when the probe is touch is saved. this is the initial tool offset.
-# then on subsequent tool changes, it probes, but doesn't use the new values of the probe
-# result. it uses the initial tool offset value and uses G10 L20 to set the current Z location
-# to that initial tool offset value.
-# Question: does the PRB result returned just tell you the current location?
-# Approximately, the machine location is very slightly lower than the reported location
-# probably because the machine didn't stop moving immediately when the switch was triggered.
-TOOL_CHANGE = '''(MSG, Press OK to Measure Tool.)
-L21\t\t\t\t; Disable Soft Limits
-L210Z\t\t\t\t; Select Z Alt Low Limits
-G53 Z0
-G53 X{TMX}Y{TMY}\t\t; Move to Tool Measure Switch X/Y Coordinates
-G92.3\t\t\t\t; store local coordinates, switch to absolute for tool measure
-L91 G0 Z{TMD}
-L91 G1 Z-9 M28 F20 G31\t\t; Descend until bit touches measurement pad
-M37 Z{TM1} H{TP1}\t\t; Set New Tool Offset
-G53 Z0
-G92.3\t\t\t\t; Restore Local Coordinates
-L91 G1 Z0 F50
-L212\t\t\t\t; Select Primary Limits for All Axes
-G0
-G53 X0 Y0
+
+# Tool Change Operation
+# inspired by: https://github.com/cncjs/CNCjs-Macros/blob/master/C3D_BitSetter/New_Tool_BitSetter.txt
+# The basic idea is that when a tool change is initiated, the spindle is turned off and
+# moved to a predefined location for the operator to change out the bit. Once the bit is
+# changed, the job is continued and the tool is moved to the measurement probe location.
+# the tool is probed by successively probing at slower and slower speeds in order to
+# get an accurate location of the tool touching the probe. Once the tool has accurately
+# been probed, we set the current working Z location to be the Z location reference initially
+# measured (before the job started) and stored in the TOOL_MEASURED_Z_REF expression variable.
+# There are probably other ways to do it using the Tool Offset (G43.1) or something, but
+# this seems the most straightforward.
+TOOL_CHANGE = '''
+(MSG, Press OK to Measure Tool.)
+G53 X{TOOL_MEASURE_PROBE_X} Y{TOOL_MEASURE_PROBE_Y}\t\t; Move to Tool Measure Probe X/Y Coordinates
+G53 Z{TOOL_MEASURE_PROBE_Z}\t\t\t\t; Rapid Move to Tool Measure Initial Z Height
+G91\t\t\t\t; Begin Relative Movement Mode
+G38.2 Z-{TOOL_MEASURE_PROBE_Z_DISTANCE} F{TOOL_MEASURE_RAPID_FEEDRATE}\t\t\t\t; Probe Quickly At First, Stop on Contact
+G0 z2\t\t\t\t; Dial it back a bit
+G38.2 z-5 F40\t\t\t\t; Probe Again, but slower
+G4 P.25\t\t\t\t; Wait
+G38.4 z10 F20\t\t\t\t; Dial it back, but stop when probe contact lost
+G4 P.25\t\t\t\t; Wait
+G38.2 z-2 F10\t\t\t\t; Probe Again, even slower
+G4 P.25\t\t\t\t; Wait
+G38.4 z10 F5\t\t\t\t; Dial it back Again, but even slower and stop when probe contact lost
+G4 P.25\t\t\t\t; Wait
+G90\t\t\t\t; End Relative Movement Mode
+G10 L20 Z{TOOL_MEASURED_Z_REF}\t\t\t\t; Set the Z current location to measured tool Z reference
+G53 Z0\t\t\t\t; Rapid Move Z to Machine 0
+G0 X0 Y0\t\t\t\t; Rapid Move to Work X/Y 0
 (MSG, Please Replace Dust Boot. Press OK when done to continue job.)
 M0
-L20
 '''
 
 SPINDLE_WAIT = 5                  # no waiting after M3 / M4 by default
