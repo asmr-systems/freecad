@@ -141,7 +141,6 @@ UNIT_FORMAT = 'mm'
 UNIT_SPEED_FORMAT = 'mm/min'
 PRE_OPERATION = ''''''            # Pre operation text will be inserted before every operation
 POST_OPERATION = ''''''           # Post operation text will be inserted after every operation
-TOOL_CHANGE = ''''''              # Tool Change commands will be inserted before a tool change
 
 # ***************************************************************************
 # * End of customization
@@ -534,6 +533,9 @@ def parse(pathobj):
 
           for line in TOOL_CHANGE.splitlines(True):
             out += linenumber() + line
+
+          # dont add the M6 command. GRBL doesn't recognize it.
+          continue
 
       if command == "message":
         if OUTPUT_COMMENTS is False:
